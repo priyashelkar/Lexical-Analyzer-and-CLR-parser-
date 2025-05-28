@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Lexical Analyzer and CLR Parser</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(to right, #00d2ff, #3a7bd5);
+      color: #333;
+      padding: 20px;
+    }
+    textarea, input[type="text"] {
+      width: 100%;
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      font-size: 16px;
+    }
+    button {
+      background-color: #007bff;
+      color: white;
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: transform 0.2s, background-color 0.3s;
+    }
+    button:hover {
+      background-color: #0056b3;
+      transform: scale(1.05);
+    }
+    h2, h3 {
+      text-align: center;
+      color: #000000;
+    }
+    .output {
+      background-color: #ffffffcc;
+      border-radius: 8px;
+      padding: 10px;
+      margin-top: 20px;
+    }
+    svg {
+      width: 100%;
+      height: 500px;
+    }
+  </style>
+</head>
+<body>
+  <h2>🌟 Lexical Analyzer & CLR Parse Tree 🌟</h2>
+
+  <label>Enter Code:</label>
+  <textarea id="codeInput" rows="6">int x = 10;</textarea>
+  <button onclick="runLexicalAnalysis()">Analyze</button>
+
+  <div class="output">
+    <h3>Tokens</h3>
+    <div id="tokens"></div>
+
+    <h3>Symbol Table</h3>
+    <pre id="symbolTable"></pre>
+
+    <h3>Parse Tree</h3>
+    <svg id="tree"></svg>
+  </div>
+
+  <script>
+    const keywords = ["int", "float", "char"];
+    let symbolTableArr = [];
+
+    function addToSymbolTable(lexeme, type) {
+      if (!symbolTableArr.find(e => e.lexeme === lexeme)) {
+        symbolTableArr.push({ lexeme, type });
+      }
+    }
+
+    function runLexicalAnalysis() {
+      const input = document.getElementById("codeInput").value;
+      const tokensEl = document.getElementById("tokens");
+      const tableEl = document.getElementById("symbolTable");
+      const svg = d3.select("#tree");
+
+      symbolTableArr = [];
+      tokensEl.innerHTML = "";
+      tableEl.textContent = "";
+      svg.selectAll("*").remove();
+
+      let i = 0;
+      let token = "";
+      let treeData = {
+        name: "Program",
+        children: []
+      };
+      let declarationNode = { name: "Declaration", children: [] };
+      let assignmentNode = { name: "Assignment", children: [] };
+
+      while (i < input.length) {
+        let ch = input[i];
+
+        if (ch === ' ' || ch === '\n') { i++; continue; }
+
+        if (/[a-zA-Z]/.test(ch)) {
+          token = ch;
+          i++;
+          while (i < input.length && /[a-zA-Z0-9]/.test(input[i])) {
+            token += input[i++];
+          }
+          if (keywords.includes(token)) {
+            tokensEl.innerHTML += `<div>Keyword: ${token}</div>`;
+            addToSymbolTable(token, "keyword");
+            declarationNode.children.push({ name: `Type: ${token}` });
+          } else {
+            tokensEl.innerHTML += `<div>Identifier: ${token}</div>`;
+            addToSymbolTable(token, "identifier");
+            if (!declarationNode.children.find(n => n.name.startsWith("Type"))) {
+              declarationNode.children.push({ name: `Identifier: ${token}` });
+            } else {
+              assignmentNode.children.push({ name: `Identifier: ${token}` });
+            }
+          }
+        } else if (/[0-9]/.test(ch)) {
+          token = ch;
+          i++;
+          while (i < input.length && /[0-9]/.test(input[i])) {
+            token += input[i++];
+          }
+          tokensEl.innerHTML += `<div>Number: ${token}</div>`;
+          addToSymbolTable(token, "number");
+          assignmentNode.children.push({ name: `Number: ${token}` });
+        } else {
+          tokensEl.innerHTML += `<div>Symbol: ${ch}</div>`;
+          addToSymbolTable(ch, "symbol");
+          if (ch === '=') assignmentNode.children.push({ name: `Operator: ${ch}` });
+          i++;
+        }
+      }
+
+      tableEl.textContent += `Lexeme\tType\n------------------\n`;
+      symbolTableArr.forEach(entry => {
+        tableEl.textContent += `${entry.lexeme}\t${entry.type}\n`;
+      });
+
+      treeData.children.push(declarationNode);
+      treeData.children.push(assignmentNode);
+
+      const root = d3.hierarchy(treeData);
+      const treeLayout = d3.tree().size([800, 400]);
+      treeLayout(root);
+
+      svg.selectAll('line')
+        .data(root.links())
+        .enter()
+        .append('line')
+        .attr('x1', d => d.source.x)
+        .attr('y1', d => d.source.y)
+        .attr('x2', d => d.target.x)
+        .attr('y2', d => d.target.y)
+        .attr('stroke', '#ccc')
+        .attr('stroke-width', 2);
+
+      svg.selectAll('circle')
+        .data(root.descendants())
+        .enter()
+        .append('circle')
+        .attr('cx', d => d.x)
+        .attr('cy', d => d.y)
+        .attr('r', 12)
+        .attr('fill', '#0000ff');
+
+      svg.selectAll('text')
+        .data(root.descendants())
+        .enter()
+        .append('text')
+        .attr('x', d => d.x)
+        .attr('y', d => d.y - 15)
+        .attr('text-anchor', 'middle')
+        .attr('fill', '#000')
+        .text(d => d.data.name);
+    }
+  </script>
+</body>
+</html>
